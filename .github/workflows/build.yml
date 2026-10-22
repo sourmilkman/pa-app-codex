@@ -4,6 +4,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+env:
+  PA_BUILD_NUMBER: ${{ github.run_number }}
 permissions:
   contents: read
 concurrency:
@@ -64,7 +66,7 @@ jobs:
           printf '%s' "$PA_KEYSTORE_BASE64" | base64 --decode > "$PA_KEYSTORE_PATH"
           chmod 600 "$PA_KEYSTORE_PATH"
           name=$(sed -n 's/^versionName=//p' version.properties)
-          code=$(sed -n 's/^versionCode=//p' version.properties)
+          code="$PA_BUILD_NUMBER"
           [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$code" =~ ^[1-9][0-9]*$ ]]
           echo "tag=v${name}+${code}" >> "$GITHUB_OUTPUT"
       - name: Build signed release
@@ -83,7 +85,7 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk "PA-${TAG}.apk"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$GITHUB_SHA" || { echo 'Bump version.properties for each new commit to main'; exit 1; }
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$GITHUB_SHA" || { echo 'Existing release tag belongs to a different commit'; exit 1; }
           else
             gh release create "$TAG" --target "$GITHUB_SHA" --title "P.A. $TAG" --notes 'Sideload APK. See README for permission setup and verification status.'
           fi
